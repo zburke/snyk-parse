@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+
+/**
+ * DESCRIPTION
+ * parse `snyk test --json` out, rolling up vulnerabilities by CVE, grouped by severity
+ *
+ * USAGE
+ * ./snyk-parse path/to/snyk_test_output.json
+ *
+ */
+
+const { readFileSync } = require('fs');
+
+const vulns = {
+  'critical': {},
+  'high': {},
+  'medium': {},
+  'low': {},
+};
+
+const ignored = [];
+
+let json;
+if (process.argv[2]) {
+  json = JSON.parse(readFileSync(process.argv[2]))
+} else {
+  console.error("no input file specified");
+  process.exit(1)
+}
+
+json.vulnerabilities.forEach(i => {
+  const id = i.identifiers.CVE[0] || i.identifiers.CWE[0] || i.identifiers.GHSA[0]
+  if (id) {
+    if (!vulns[i.severityWithCritical][id]) {
+      vulns[i.severityWithCritical][id] = {
+        moduleName: i.moduleName,
+        fixedIn: i.fixedIn,
+        title: i.title,
+        from: [],
+        version: [],
+      };
+    }
+
+    const entry = vulns[i.severityWithCritical][id];
+
+    // drop the current package, because of course the current package is vulnerable
+    entry.from.push(i.from.slice(1).join(" < "))
+
+    // keep a list of vulnerable versions
+    entry.version = Array.from(new Set([...entry.version, i.version]));
+
+  } else {
+    ignored.push(`ignoring ${i.title} in ${i.moduleName}@${i.version}; there is no CVE, CWE, or GHSA ${i.identifiers.CWE}`)
+  }
+});
+
+
+const fromFormat = (list) => {
+  // show 1 path and a count of vulnerable paths
+  return `\n\t${list[0]} and ${list.length - 1} others`;
+
+  // show all paths
+  return list.map(i => `\n\t\t${i}`)
+};
+
+Object.entries(vulns).forEach(([k, v]) => {
+  if (Object.entries(v).length) {
+    Object.entries(v).forEach(([cve, i]) => {
+      console.log(`${cve}\t${k.toUpperCase()}\t${i.moduleName}\t${i.version}\t${i.fixedIn}\t${i.title}${fromFormat(i.from)}`)
+    })
+  }
+});
+
+Array.from(new Set(ignored)).forEach(i => { console.log(i);})
+
