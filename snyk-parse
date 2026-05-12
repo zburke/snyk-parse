@@ -28,8 +28,21 @@ if (process.argv[2]) {
   process.exit(1)
 }
 
+
+if (!Array.isArray(json.vulnerabilities)) {
+  console.error(`sorry; could not process ${process.argv[2]}`);
+  if (json && json.error) {
+    console.error(json.error)
+  } else {
+    console.error("Output was not an array.")
+  }
+  process.exit(1)
+}
+
+// console.warn({ json })
+
 json.vulnerabilities.forEach(i => {
-  const id = i.identifiers.CVE[0] || i.identifiers.CWE[0] || i.identifiers.GHSA[0]
+  const id = i.identifiers.CVE?.[0] || i.identifiers.GHSA?.[0]
   if (id) {
     if (!vulns[i.severityWithCritical][id]) {
       vulns[i.severityWithCritical][id] = {
@@ -50,7 +63,7 @@ json.vulnerabilities.forEach(i => {
     entry.version = Array.from(new Set([...entry.version, i.version]));
 
   } else {
-    ignored.push(`ignoring ${i.title} in ${i.moduleName}@${i.version}; there is no CVE, CWE, or GHSA ${i.identifiers.CWE}`)
+    ignored.push(`ignoring ${i.title} in ${i.moduleName}@${i.version}; there is no CVE or GHSA ${i.identifiers.CWE}`)
   }
 });
 
@@ -71,5 +84,5 @@ Object.entries(vulns).forEach(([k, v]) => {
   }
 });
 
-Array.from(new Set(ignored)).forEach(i => { console.log(i);})
+Array.from(new Set(ignored)).forEach(i => { console.log(i); })
 
